@@ -1,0 +1,83 @@
+import streamlit as st
+import pandas as pd
+import numpy as np
+import joblib
+from sklearn.preprocessing import LabelEncoder
+from tensorflow.keras.models import load_model
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.preprocessing import StandardScaler
+
+# Load the saved model and preprocessing objects
+model = load_model('discounted_price_model.h5')
+scaler = joblib.load('scaler.pkl')
+tfidf_vectorizer_name = joblib.load('tfidf_vectorizer_name.pkl')
+label_encoders = joblib.load('label_encoders.pkl')
+
+# Load the dataset for brand and product_category_tree lookup
+data_path = 'flipkart_com-ecommerce_sample.csv'
+df = pd.read_csv(data_path)
+
+# Fill missing values in relevant columns for lookup
+df['product_name'].fillna('Unknown', inplace=True)
+df['brand'].fillna('Unknown', inplace=True)
+df['product_category_tree'] = df['product_category_tree'].str.split('>>').str[0].str.strip().fillna('Unknown')
+
+# Streamlit app title and description
+st.title("Discounted Price Prediction")
+st.write("This app predicts the discounted price of a product based on various features such as product name, category, retail price, and more.")
+
+# Input field for the product name
+product_name = st.text_input('Product Name', 'Example Product')
+
+# Automatically get the corresponding brand and product category based on the product name
+matching_products = df[df['product_name'].str.contains(product_name, case=False, na=False)]
+
+if not matching_products.empty:
+    # Automatically select the first matching product's brand and category tree
+    brand_options = matching_products['brand'].unique()
+    product_category_options = matching_products['product_category_tree'].unique()
+
+    selected_brand = st.selectbox('Brand', brand_options)
+    selected_category = st.selectbox('Product Category Tree', product_category_options)
+else:
+    # If no matching product found, use default options
+    selected_brand = st.selectbox('Brand', ['Unknown'])
+    selected_category = st.selectbox('Product Category Tree', ['Unknown'])
+
+# Input field for retail price
+retail_price = st.number_input('Retail Price', min_value=0.0, step=1.0)
+
+# Input field for overall rating
+overall_rating = st.number_input('Overall Rating (1-5)', min_value=0.0, max_value=5.0, step=0.1)
+
+# Button for prediction
+if st.button('Predict Discounted Price'):
+    # Preprocessing the inputs
+    product_name_tfidf = tfidf_vectorizer_name.transform([product_name]).toarray()
+    
+    # Encode the brand and category tree using label encoders
+    product_category_tree_encoded = label_encoders['product_category_tree'].transform([selected_category])
+    brand_encoded = label_encoders['brand'].transform([selected_brand])
+    
+    # Combine the features (TF-IDF and numeric features)
+    X_combined = np.concatenate([
+        product_name_tfidf,
+        np.array([[retail_price, product_category_tree_encoded[0], overall_rating, brand_encoded[0]]])
+    ], axis=1)
+    
+    # Scale the combined features
+    X_scaled = scaler.transform(X_combined)
+    
+    # Predict the discounted price
+    predicted_discounted_price = model.predict(X_scaled)
+    
+    # Display the prediction
+    st.write(f"Predicted Discounted Price: ₹{predicted_discounted_price[0][0]:.2f}")
+
+# Optional: Display some instructions
+st.write("""
+### Instructions:
+- Enter the product name, and the system will automatically fill the brand and category tree based on matching products.
+- Enter the retail price and the overall rating (if applicable).
+- Click "Predict Discounted Price" to see the model's prediction.
+""")
