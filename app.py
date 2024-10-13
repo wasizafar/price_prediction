@@ -264,8 +264,8 @@ def display_bill_and_payment(selected_products):
 def send_email(email, subject, body):
     smtp_server = 'smtp.gmail.com'
     smtp_port = 587
-    sender_email = 'mw9403@srmist.edu.in'  # Change to your email
-    sender_password = 'Mdwasi9631@'  # Change to your password
+    sender_email = 'mw9403@gmail.com'  # Change to your email
+    sender_password = '********'  # Change to your password
 
     message = MIMEMultipart()
     message['From'] = sender_email
